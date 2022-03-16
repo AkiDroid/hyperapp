@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document</title>
+  <link rel="stylesheet" href="./test.css" />
+</head>
+
+<body>
+  <main id="app"></main>
+
+  <script type="module">
+    import { h, text, app } from './index.js'
+
+    const fetchJson = (dispatch, options) => {
+      fetch(options.url)
+        .then(response => response.json())
+        .then(data => dispatch(options.action, data))
+    }
+
+    const jsonFetcher = (url, action) => [fetchJson, { url, action }]
+
+    // --- ACTIONS ---
+
+    const ToggleHighlight = (state, index) => {
+      let highlight = [...state.highlight]
+      highlight[index] = !highlight[index]
+      return { ...state, highlight }
+    }
+
+    const Select = (state, selected) => [
+      { ...state, selected },
+      jsonFetcher("https://jsonplaceholder.typicode.com/users/" + state.ids[selected], GotBio),
+    ]
+
+    const GotBio = (state, data) => ({ ...state, bio: data.company.bs })
+
+    const GotNames = (state, data) => ({
+      ...state,
+      names: data.slice(0, 5).map(x => x.name),
+      ids: data.slice(0, 5).map(x => x.id),
+      highlight: [false, false, false, false, false],
+    })
+
+    // --- SUBS ---
+
+    const SelectUp = state => {
+      if (state.selected === null) return state
+      return [Select, state.selected - 1]
+    }
+
+    const SelectDown = state => {
+      if (state.selected === null) return state
+      return [Select, state.selected + 1]
+    }
+
+    const keydownSubscriber = (dispatch, options) => {
+      const handler = ev => {
+        if (ev.key !== options.key) return
+        dispatch(options.action)
+      }
+      addEventListener("keydown", handler)
+      return () => {
+        console.log('removeL')
+        removeEventListener("keydown", handler)
+      }
+    }
+
+    const onKeyDown = (key, action) => [keydownSubscriber, { key, action }]
+
+    // --- VIEW COMPONENTS ---
+
+    const person = props =>
+      h("div", {
+        class: {
+          person: true,
+          highlight: props.highlight,
+          selected: props.selected,
+        },
+        onclick: props.onselect,
+      }, [
+        h("p", {}, text(props.name)),
+        h("input", {
+          type: "checkbox",
+          checked: props.highlight,
+          onclick: (_, event) => {
+            event.stopPropagation()
+            return props.ontoggle
+          },
+        }),
+      ])
+
+    // --- RUN ---
+
+    window._app = app({
+      init: [
+        { names: [], highlight: [], selected: null, bio: "", ids: [] },
+        jsonFetcher("https://jsonplaceholder.typicode.com/users", GotNames)
+      ],
+      view: state => h("main", {}, [
+        ...state.names.map((name, index) => person({
+          name,
+          highlight: state.highlight[index],
+          ontoggle: [ToggleHighlight, index],
+          selected: state.selected === index,
+          onselect: [Select, index],
+        })),
+        state.bio &&
+        h("div", { class: "bio" }, text(state.bio)),
+      ]),
+      node: document.getElementById("app"),
+      subscriptions: state => [
+        onKeyDown("ArrowUp", SelectUp),
+        onKeyDown("ArrowDown", SelectDown),
+      ],
+    })
+  </script>
+  <script>
+    // const id = (i) => i
+    // function test({ dispatch = id, init = {} }) {
+    //   return ((dispatch = dispatch((action, props) => {
+    //     console.log('action props', action, props)
+    //   }))(init), dispatch)
+    // }
+    // const r = test({ init: {hah: 1}, dispatch: (i) => {
+    //   console.log('i', i)
+    //   return () => {}
+    // } })
+    // console.log('r', r);
+  </script>
+</body>
+
+</html>
